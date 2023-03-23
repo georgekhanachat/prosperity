@@ -1,52 +1,68 @@
+import json
 from collections import deque
-from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+from typing import Dict, List, Any
+
 from numpy import ndarray
 
-from datamodel import OrderDepth, TradingState, Order
+from datamodel import OrderDepth, TradingState, Order, ProsperityEncoder, Symbol, Product
+
+
+class Logger:
+    def __init__(self) -> None:
+        self.logs = ""
+
+    def print(self, *objects: Any, sep: str = " ", end: str = "\n") -> None:
+        self.logs += sep.join(map(str, objects)) + end
+
+    def flush(self, state: TradingState, orders: dict[Symbol, list[Order]]) -> None:
+        print(json.dumps({
+            "state": state,
+            "orders": orders,
+            "logs": self.logs,
+        }, cls=ProsperityEncoder, separators=(",", ":"), sort_keys=True))
+
+        self.logs = ""
+
+
+logger = Logger()
 
 
 class Trader:
+
     def __init__(self) -> None:
 
         period_pearls = 10
         period_bananas = 10
+        period_coconuts = 50
+        period_pinacolada = 50
 
         self.position_limits = {
             "PEARLS": 20,
-            "BANANAS": 20
+            "BANANAS": 20,
+            "COCONUTS": 600,
+            "PINA_COLADAS": 300,
         }
+
+        self.remaining_pc = self.position_limits["PINA_COLADAS"]
+        self.remaining_c = self.position_limits["COCONUTS"]
 
         self.price_history = {
             "PEARLS": deque(maxlen=period_pearls),
-            "BANANAS": deque(maxlen=period_bananas)
+            "BANANAS": deque(maxlen=period_bananas),
+            "COCONUTS": deque(maxlen=period_coconuts),
+            "PINA_COLADAS": deque(maxlen=period_pinacolada),
         }
 
-    @staticmethod
-    def get_market_state(price_history: np.ndarray) -> str:
-        """ Uses Stochastic Oscillator to determine if overbought or oversold """
-
-        # get highest and lowest values in predefined period
-        high_roll = max(price_history)
-        low_roll = min(price_history)
-
-        # Fast stochastic indicator
-        num = price_history - low_roll
-        denom = high_roll - low_roll
-        k_line = (num / denom) * 100
-
-        # Slow stochastic indicator
-        d_line = pd.DataFrame(k_line).rolling(3).mean().values
-
-        # decide state
-        if d_line[-1] > 85:
-            return "overbought"
-        elif d_line[-1] < 15:
-            return "oversold"
-        else:
-            return "neutral"
+    def buildDataFrame(self, orderDepth: OrderDepth, product: Product):
+        df = pd.DataFrame({"price": self.price_history[product]})
+        df["EMA_12"] = df["price"].ewm(span=12).mean()
+        df["EMA_26"] = df["price"].ewm(span=26).mean()
+        df["MACD"] = df["EMA_12"] - df["EMA_26"]
+        df["Signal"] = df["MACD"].ewm(span=9).mean()
+        return df
 
     @staticmethod
     def get_medium_price(order_depth: OrderDepth) -> ndarray:
@@ -61,85 +77,58 @@ class Trader:
     def run(self, state: TradingState) -> Dict[str, List[Order]]:
         result = {}
         for product in state.listings.keys():
-            if product == 'PEARLS':
-                # Implement market making strategy for PEARLS
-                order_depth: OrderDepth = state.order_depths[product]
-                orders: list[Order] = []
-                acceptable_price = 10000
-                spread = 0
-                if len(order_depth.sell_orders) > 0:
-                    best_ask = min(order_depth.sell_orders.keys())
-                    best_ask_volume = order_depth.sell_orders[best_ask]
-                    print()
-                    print("ASK", best_ask, best_ask_volume)
-                    print()
-                    if best_ask < (acceptable_price - spread):
-                        print()
-                        print("BUY", str(-best_ask_volume) + "x", best_ask)
-                        print()
-                        while best_ask_volume < -20:
-                            print("BUY ASK_VOLUME", best_ask_volume)
-                            orders.append(Order(product, best_ask, 20))
-                            best_ask_volume += 20
-                        if best_ask_volume < 0:
-                            orders.append(Order(product, best_ask, -best_ask_volume))
-                if len(order_depth.buy_orders) != 0:
-                    best_bid = max(order_depth.buy_orders.keys())
-                    best_bid_volume = order_depth.buy_orders[best_bid]
-                    print()
-                    print("BID", best_bid, best_bid_volume)
-                    print()
-                    if best_bid > (acceptable_price + spread):
-                        print()
-                        print("SELL", str(best_bid_volume) + "x", best_bid)
-                        print()
-                        while best_bid_volume > 20:
-                            print("SELL BID_VOLUME", best_bid_volume)
-                            orders.append(Order(product, best_bid, -20))
-                            best_bid_volume -= 20
-                        if best_bid_volume > 0:
-                            orders.append(Order(product, best_bid, -best_bid_volume))
-                result[product] = orders
-            elif product == 'BANANAS':
-                order_depth: OrderDepth = state.order_depths[product]
-                orders: list[Order] = []
-                self.price_history[product].append(self.get_medium_price(order_depth))
+            if product in ['COCONUTS', 'PINA_COLADAS']:
+                # calculate MACD for PINA_COLADAS and COCONUTS
+                pc_order_depth: OrderDepth = state.order_depths["PINA_COLADAS"]
+                c_order_depth: OrderDepth = state.order_depths["COCONUTS"]
 
-                # get market state and acceptable price
-                acceptable_price = self.get_medium_price(order_depth)
-                market_state = self.get_market_state(self.price_history[product])
+                self.price_history['COCONUTS'].append(self.get_medium_price(c_order_depth))
+                self.price_history['PINA_COLADAS'].append(self.get_medium_price(pc_order_depth))
 
-                # wait for full price history (period)
                 if len(self.price_history[product]):
+                    pc_df = self.buildDataFrame(pc_order_depth, "PINA_COLADAS")
+                    c_df = self.buildDataFrame(pc_order_depth, "COCONUTS")
 
-                    if len(order_depth.sell_orders) > 0:
-                        best_ask = min(order_depth.sell_orders.keys())
-                        best_ask_volume = order_depth.sell_orders[best_ask]
-                        if best_ask < acceptable_price and market_state != "overbought":
+                    logger.print("p", pc_df.iloc[-1]["MACD"], pc_df.iloc[-1]["Signal"])
+                    logger.print("c", c_df.iloc[-1]["MACD"], c_df.iloc[-1]["Signal"])
 
-                            print("BUY", str(-best_ask_volume) + "x", best_ask)
-                            while best_ask_volume < -20:
-                                print("BUY ASK_VOLUME", best_ask_volume)
-                                orders.append(Order(product, best_ask, 20))
-                                best_ask_volume += 20
-                            if best_ask_volume < 0:
-                                orders.append(Order(product, best_ask, -best_ask_volume))
-                        elif market_state == "overbought":
-                            print("Not buying because market is 'overbought' ")
+                    # implement pair trading strategy
+                    if pc_df.iloc[-1]["MACD"] > pc_df.iloc[-1]["Signal"] and c_df.iloc[-1]["MACD"] < c_df.iloc[-1][
+                        "Signal"]:
+                        # bullish signal, buy PINA_COLADAS and sell COCONUTS
+                        # buy pina coladas
+                        if len(pc_order_depth.sell_orders) > 0:
+                            pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
+                            pina_price = min(pc_order_depth.sell_orders.keys())
+                            pina_quantity = min(pc_order_depth.sell_orders[pina_price], 300 - pina_position)
+                            logger.print("Buy PINA_COLADAS")
+                            result.setdefault("PINA_COLADAS", []).append(Order('PINA_COLADAS', pina_price, pina_quantity))
 
-                    if len(order_depth.buy_orders) > 0:
-                        best_bid = max(order_depth.buy_orders.keys())
-                        best_bid_volume = order_depth.buy_orders[best_bid]
-                        if best_bid > acceptable_price and market_state != "oversold":
+                        # sell coconuts
+                        if len(c_order_depth.buy_orders) > 0:
+                            coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
+                            coconut_price = min(c_order_depth.buy_orders.keys())
+                            coconut_quantity = min(c_order_depth.buy_orders[coconut_price], 600 - coconut_position)
+                            logger.print("Sell COCONUTS")
+                            result.setdefault("COCONUTS", []).append(Order('COCONUTS', coconut_price, - coconut_quantity))
 
-                            print("SELL", str(best_bid_volume) + "x", best_bid)
-                            while best_bid_volume > 20:
-                                print("SELL BID_VOLUME", best_bid_volume)
-                                orders.append(Order(product, best_bid, -20))
-                                best_bid_volume -= 20
-                            if best_bid_volume > 0:
-                                orders.append(Order(product, best_bid, -best_bid_volume))
-                        elif market_state == "oversold":
-                            print("Not selling because market is 'oversold' ")
-                    result[product] = orders
+                    elif pc_df.iloc[-1]["MACD"] < pc_df.iloc[-1]["Signal"] and c_df.iloc[-1]["MACD"] > c_df.iloc[-1][
+                        "Signal"]:
+                        # bearish signal, sell PINA_COLADAS and buy COCONUTS
+                        if len(c_order_depth.sell_orders) > 0:
+                            coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
+                            coconut_price = min(c_order_depth.sell_orders.keys())
+                            coconut_quantity = min(c_order_depth.sell_orders[coconut_price], 300 - coconut_position)
+                            logger.print("Buy COCONUTS")
+                            result.setdefault("COCONUTS", []).append(Order('COCONUTS', coconut_price, coconut_quantity))
+
+                            # sell coconuts
+                        if len(pc_order_depth.buy_orders) > 0:
+                            pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
+                            pina_price = min(pc_order_depth.buy_orders.keys())
+                            pina_quantity = min(pc_order_depth.buy_orders[pina_price], 600 - pina_position)
+                            logger.print("Sell PINA_COLADAS")
+                            result.setdefault("PINA_COLADAS", []).append(Order('PINA_COLADAS', pina_price, - pina_quantity))
+                    logger.print("result", result)
+                    logger.flush(state, result)
         return result
