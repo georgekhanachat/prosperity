@@ -67,115 +67,137 @@ class Trader:
     @staticmethod
     def get_correlation(a: List, b: List) -> float:
         """ Returns pearson correlation of a to b """
-        
+
         pearson_corr = np.corrcoef(a, b)
         return pearson_corr[0][1]
 
     def run(self, state: TradingState) -> Dict[str, List[Order]]:
         result = {}
-       
+
         orders_coco: list[Order] = []
         orders_pina: list[Order] = []
+
+        orders: list[Order] = []
+
         for product in state.listings.keys():
-            
-            
+
+            order_depth = state.order_depths[product]
+
             # STRATEGY: Market-making (stable price)
             if product == 'PEARLS':
-                continue
-                
-                # acceptable_price = 10000
-                # spread = 0
-                # if len(order_depth.sell_orders) > 0:
-                #     best_ask = min(order_depth.sell_orders.keys())
-                #     best_ask_volume = order_depth.sell_orders[best_ask]
-                #     print()
-                #     print("ASK", best_ask, best_ask_volume)
-                #     print()
-                #     if best_ask < (acceptable_price - spread):
-                #         print()
-                #         print("BUY", str(-best_ask_volume) + "x", best_ask)
-                #         print()
-                #         while best_ask_volume < -20:
-                #             print("BUY ASK_VOLUME", best_ask_volume)
-                #             orders.append(Order(product, best_ask, 20))
-                #             best_ask_volume += 20
-                #         if best_ask_volume < 0:
-                #             orders.append(Order(product, best_ask, -best_ask_volume))
-                # if len(order_depth.buy_orders) != 0:
-                #     best_bid = max(order_depth.buy_orders.keys())
-                #     best_bid_volume = order_depth.buy_orders[best_bid]
-                #     print()
-                #     print("BID", best_bid, best_bid_volume)
-                #     print()
-                #     if best_bid > (acceptable_price + spread):
-                #         print()
-                #         print("SELL", str(best_bid_volume) + "x", best_bid)
-                #         print()
-                #         while best_bid_volume > 20:
-                #             print("SELL BID_VOLUME", best_bid_volume)
-                #             orders.append(Order(product, best_bid, -20))
-                #             best_bid_volume -= 20
-                #         if best_bid_volume > 0:
-                #             orders.append(Order(product, best_bid, -best_bid_volume))
-                # result[product] = orders
-                
-            # STATEGY: Stochastic oscillators (K-Line)
-            elif product in ['BANANAS']:                
-                continue
-                
-                # # get market state and acceptable price
-                # acceptable_price = self.get_medium_price(order_depth)
-                # market_state = self.get_market_state(self.price_history[product])
+                # Implement market making strategy for PEARLS
+                order_depth: OrderDepth = state.order_depths[product]
+                orders: list[Order] = []
+                acceptable_price = 10000
+                spread = 0
+                if len(order_depth.sell_orders) > 0:
+                    best_ask = min(order_depth.sell_orders.keys())
+                    best_ask_volume = order_depth.sell_orders[best_ask]
+                    print()
+                    print("ASK", best_ask, best_ask_volume)
+                    print()
+                    if best_ask < (acceptable_price - spread):
+                        print()
+                        print("BUY", str(-best_ask_volume) + "x", best_ask)
+                        print()
+                        while best_ask_volume < -20:
+                            print("BUY ASK_VOLUME", best_ask_volume)
+                            orders.append(Order(product, best_ask, 20))
+                            best_ask_volume += 20
+                        if best_ask_volume < 0:
+                            orders.append(Order(product, best_ask, -best_ask_volume))
+                if len(order_depth.buy_orders) != 0:
+                    best_bid = max(order_depth.buy_orders.keys())
+                    best_bid_volume = order_depth.buy_orders[best_bid]
+                    print()
+                    print("BID", best_bid, best_bid_volume)
+                    print()
+                    if best_bid > (acceptable_price + spread):
+                        print()
+                        print("SELL", str(best_bid_volume) + "x", best_bid)
+                        print()
+                        while best_bid_volume > 20:
+                            print("SELL BID_VOLUME", best_bid_volume)
+                            orders.append(Order(product, best_bid, -20))
+                            best_bid_volume -= 20
+                        if best_bid_volume > 0:
+                            orders.append(Order(product, best_bid, -best_bid_volume))
+                result[product] = orders
 
-                # # wait for full price history (period)
-                # if len(self.price_history[product]) > 10:
+            elif product == 'BANANAS':
 
-                #     if len(order_depth.sell_orders) > 0:
-                #         best_ask = min(order_depth.sell_orders.keys())
-                #         best_ask_volume = order_depth.sell_orders[best_ask]
-                #         if best_ask < acceptable_price and market_state != "overbought":
+                order_depth: OrderDepth = state.order_depths[product]
+                orders: list[Order] = []
+                self.price_history[product].append(self.get_medium_price(order_depth))
 
-                #             print("BUY", str(-best_ask_volume) + "x", best_ask)
-                #             while best_ask_volume < -self.position_limits[product]:
-                #                 print("BUY ASK_VOLUME", best_ask_volume)
-                #                 orders.append(Order(product, best_ask, self.position_limits[product]))
-                #                 best_ask_volume += self.position_limits[product]
-                #             if best_ask_volume < 0:
-                #                 orders.append(Order(product, best_ask, -best_ask_volume))
-                #         # elif market_state == "overbought":
-                #         #     print("Not buying because market is 'overbought' ")
+                # get market state and acceptable price
+                acceptable_price = self.get_medium_price(order_depth)
+                market_state = self.get_market_state(self.price_history[product])
 
-                #     if len(order_depth.buy_orders) > 0:
-                #         best_bid = max(order_depth.buy_orders.keys())
-                #         best_bid_volume = order_depth.buy_orders[best_bid]
-                #         if best_bid > acceptable_price and market_state != "oversold":
+                # wait for full price history (period)
+                if len(self.price_history[product]):
 
-                #             print("SELL", str(best_bid_volume) + "x", best_bid)
-                #             while best_bid_volume > self.position_limits[product]:
-                #                 print("SELL BID_VOLUME", best_bid_volume)
-                #                 orders.append(Order(product, best_bid, -self.position_limits[product]))
-                #                 best_bid_volume -= self.position_limits[product]
-                #             if best_bid_volume > 0:
-                #                 orders.append(Order(product, best_bid, -best_bid_volume))
-                #         # elif market_state == "oversold":
-                #         #     print("Not selling because market is 'oversold' ")
-                #     result[product] = orders
-            
+                    if len(order_depth.sell_orders) > 0:
+                        best_ask = min(order_depth.sell_orders.keys())
+                        best_ask_volume = order_depth.sell_orders[best_ask]
+                        if best_ask < acceptable_price and market_state != "overbought":
+
+                            print("BUY", str(-best_ask_volume) + "x", best_ask)
+
+                            # while best_ask_volume < -20:
+                            #     print("BUY ASK_VOLUME", best_ask_volume)
+                            #     orders.append(Order(product, best_ask, 20))
+                            #     best_ask_volume += 20
+                            # if best_ask_volume < 0:
+                            #     orders.append(Order(product, best_ask, -best_ask_volume))
+
+                            if best_ask_volume < -20:
+                                orders.append(Order(product, best_ask, 20))
+                            else:
+                                orders.append(Order(product, best_ask, -best_ask_volume))
+
+                        elif market_state == "overbought":
+                            print("Not buying because market is 'overbought' ")
+
+                    if len(order_depth.buy_orders) > 0:
+                        best_bid = max(order_depth.buy_orders.keys())
+                        best_bid_volume = order_depth.buy_orders[best_bid]
+                        if best_bid > acceptable_price and market_state != "oversold":
+
+                            print("SELL", str(best_bid_volume) + "x", best_bid)
+
+                            # while best_bid_volume > 20:
+                            #     print("SELL BID_VOLUME", best_bid_volume)
+                            #     orders.append(Order(product, best_bid, -20))
+                            #     best_bid_volume -= 20
+                            # if best_bid_volume > 0:
+                            #     orders.append(Order(product, best_bid, -best_bid_volume))
+
+                            if best_bid_volume > 20:
+                                orders.append(Order(product, best_bid, -20))
+                            else:
+                                orders.append(Order(product, best_bid, -best_bid_volume))
+
+                        elif market_state == "oversold":
+                            print("Not selling because market is 'oversold' ")
+                    result[product] = orders
+
             # STRATEGY: MACD
             elif product in ['COCONUTS', 'PINA_COLADAS']:
-                
+
                 pina_order_depth = state.order_depths['PINA_COLADAS']
                 coconut_order_depth = state.order_depths['COCONUTS']
-                
+
                 self.price_history['COCONUTS'].append(self.get_medium_price(coconut_order_depth))
                 self.price_history['PINA_COLADAS'].append(self.get_medium_price(pina_order_depth))
-                
+
                 if len(self.price_history[product]):
-                    
+
                     # check correlation (just for debugging)
-                    correlation_coco = self.get_correlation(self.price_history["PINA_COLADAS"], self.price_history["COCONUTS"])
+                    correlation_coco = self.get_correlation(self.price_history["PINA_COLADAS"],
+                                                            self.price_history["COCONUTS"])
                     print(f"Correlation: {correlation_coco}")
-                    
+
                     pina_df = pd.DataFrame(list(self.price_history['PINA_COLADAS']))
                     coconut_df = pd.DataFrame(list(self.price_history['COCONUTS']))
                     pina_ema12 = pina_df.ewm(span=12).mean()
@@ -187,47 +209,51 @@ class Trader:
                     coconut_ema26 = coconut_df.ewm(span=26).mean()
                     coconut_macd = coconut_ema12 - coconut_ema26
                     coconut_signal = coconut_macd.ewm(span=9).mean()
-                    
+
                     # pina coladas buy --> coconut sell
-                    if pina_macd[0].values[-1] > pina_signal[0].values[-1] and coconut_macd[0].values[-1] < coconut_signal[0].values[-1]:
-                        
-                        # buy pina coladas 
+                    if pina_macd[0].values[-1] > pina_signal[0].values[-1] and coconut_macd[0].values[-1] < \
+                            coconut_signal[0].values[-1]:
+
+                        # buy pina coladas
                         if len(pina_order_depth.sell_orders) > 0:
                             pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
                             pina_price = min(pina_order_depth.sell_orders.keys())
                             pina_quantity = min(pina_order_depth.sell_orders[pina_price], 300 - pina_position)
                             print("Buy PINA_COLADAS")
                             orders_pina.append(Order('PINA_COLADAS', pina_price, pina_quantity))
-                        
+
                         # sell coconuts
                         if len(coconut_order_depth.buy_orders) > 0:
                             coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
                             coconut_price = min(coconut_order_depth.buy_orders.keys())
-                            coconut_quantity = min(coconut_order_depth.buy_orders[coconut_price], 600 - coconut_position)
+                            coconut_quantity = min(coconut_order_depth.buy_orders[coconut_price],
+                                                   600 - coconut_position)
                             print("Sell COCONUTS")
                             orders_coco.append(Order('COCONUTS', coconut_price, - coconut_quantity))
-                    
+
                     # pina coladas sell --> coconut buy
-                    elif pina_macd[0].values[-1] < pina_signal[0].values[-1] and coconut_macd[0].values[-1] > coconut_signal[0].values[-1]:
-                        
-                        # buy coconuts 
+                    elif pina_macd[0].values[-1] < pina_signal[0].values[-1] and coconut_macd[0].values[-1] > \
+                            coconut_signal[0].values[-1]:
+
+                        # buy coconuts
                         if len(coconut_order_depth.sell_orders) > 0:
                             coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
                             coconut_price = min(coconut_order_depth.sell_orders.keys())
-                            coconut_quantity = min(coconut_order_depth.sell_orders[coconut_price], 300 - coconut_position)
+                            coconut_quantity = min(coconut_order_depth.sell_orders[coconut_price],
+                                                   300 - coconut_position)
                             print("Buy COCONUTS")
                             orders_coco.append(Order('COCONUTS', coconut_price, coconut_quantity))
-                            
-                        # sell coconuts
+
+                        # sell pina colada
                         if len(pina_order_depth.buy_orders) > 0:
                             pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
                             pina_price = min(pina_order_depth.buy_orders.keys())
                             pina_quantity = min(pina_order_depth.buy_orders[pina_price], 600 - pina_position)
                             print("Sell PINA_COLADAS")
                             orders_pina.append(Order('PINA_COLADAS', pina_price, - pina_quantity))
-                    
+
                 # add orders
                 result["PINA_COLADAS"] = orders_pina
                 result["COCONUTS"] = orders_coco
-               
+
         return result
