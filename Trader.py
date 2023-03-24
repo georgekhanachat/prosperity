@@ -218,18 +218,27 @@ class Trader:
                         if len(pina_order_depth.sell_orders) > 0:
                             pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
                             pina_price = min(pina_order_depth.sell_orders.keys())
-                            pina_quantity = min(pina_order_depth.sell_orders[pina_price], 300 - pina_position)
+
+                            if pina_position <= 0:
+                                pina_quantity = min( pina_order_depth.sell_orders[pina_price], -(300 + pina_position))
+                            else:
+                                pina_quantity = min( pina_order_depth.sell_orders[pina_price], -(300 - pina_position))
+
                             print("Buy PINA_COLADAS")
-                            orders_pina.append(Order('PINA_COLADAS', pina_price, pina_quantity))
+                            orders_pina.append(Order('PINA_COLADAS', pina_price, +pina_quantity))
 
                         # sell coconuts
                         if len(coconut_order_depth.buy_orders) > 0:
                             coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
                             coconut_price = min(coconut_order_depth.buy_orders.keys())
-                            coconut_quantity = min(coconut_order_depth.buy_orders[coconut_price],
-                                                   600 - coconut_position)
+
+                            if coconut_position <= 0:
+                                coconut_quantity = min(coconut_order_depth.buy_orders[coconut_price], 600 + coconut_position)
+                            else:
+                                coconut_quantity = min(coconut_order_depth.buy_orders[coconut_price], 600 - coconut_position)
+
                             print("Sell COCONUTS")
-                            orders_coco.append(Order('COCONUTS', coconut_price, - coconut_quantity))
+                            orders_coco.append(Order('COCONUTS', coconut_price, -coconut_quantity))
 
                     # pina coladas sell --> coconut buy
                     elif pina_macd[0].values[-1] < pina_signal[0].values[-1] and coconut_macd[0].values[-1] > \
@@ -239,21 +248,31 @@ class Trader:
                         if len(coconut_order_depth.sell_orders) > 0:
                             coconut_position = state.position["COCONUTS"] if "COCONUTS" in state.position else 0
                             coconut_price = min(coconut_order_depth.sell_orders.keys())
-                            coconut_quantity = min(coconut_order_depth.sell_orders[coconut_price],
-                                                   300 - coconut_position)
+
+                            if coconut_position <= 0:
+                                coconut_quantity = min(coconut_order_depth.sell_orders[coconut_price], -(300 + coconut_position))
+                            else:
+                                coconut_quantity = min(coconut_order_depth.sell_orders[coconut_price], -(300 - coconut_position))
+
                             print("Buy COCONUTS")
-                            orders_coco.append(Order('COCONUTS', coconut_price, coconut_quantity))
+                            orders_coco.append(Order('COCONUTS', coconut_price, +coconut_quantity))
 
                         # sell pina colada
                         if len(pina_order_depth.buy_orders) > 0:
                             pina_position = state.position["PINA_COLADAS"] if "PINA_COLADAS" in state.position else 0
                             pina_price = min(pina_order_depth.buy_orders.keys())
-                            pina_quantity = min(pina_order_depth.buy_orders[pina_price], 600 - pina_position)
+
+                            if pina_position <= 0:
+                                pina_quantity = min(pina_order_depth.buy_orders[pina_price], 600 + pina_position)
+                            else:
+                                pina_quantity = min(pina_order_depth.buy_orders[pina_price], 600 - pina_position)
+
                             print("Sell PINA_COLADAS")
-                            orders_pina.append(Order('PINA_COLADAS', pina_price, - pina_quantity))
+                            orders_pina.append(Order('PINA_COLADAS', pina_price, -pina_quantity))
 
                 # add orders
                 result["PINA_COLADAS"] = orders_pina
                 result["COCONUTS"] = orders_coco
 
         return result
+
